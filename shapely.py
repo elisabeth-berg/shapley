@@ -7,10 +7,12 @@ class ShapelyAttributer(object):
         """
         Compute the Shapely channel value for each of the channels {0, ..., n}.
 
-        Future work
-            -- incorporate repeated visits
-            -- incorporate touchpoint ordering
-            -- sort journeys by win/not
+        Parameters
+        ----------
+        journeys :  dataframe. Each column represents a sequence number; each
+                    row is a user. The values should be integers corresponding
+                    to the channel touched at this point in the sequence.
+        values :    vector of values corresponding to the users in journeys.
         """
         self.journeys = journeys
         self.values = values
@@ -26,7 +28,7 @@ class ShapelyAttributer(object):
 
     def fit(self):
         """
-        Compute shapely values for each channel.
+        Compute Shapely values for each channel.
         Note that this method is order agnostic and also ignores double touches.
         """
         self.shapely_vals = np.zeros(self.n_channels + 1)
@@ -39,7 +41,7 @@ class ShapelyAttributer(object):
 
     def fit_ordered(self):
         """
-        Compute shapely values for each channel/time segment combo.
+        Compute Shapely values for each channel/time segment combo.
         Note that double touches are double counted.
         """
         self.ordered_shapely_vals = np.zeros((self.max_journey, self.n_channels + 1))
@@ -53,18 +55,24 @@ class ShapelyAttributer(object):
                     self.journeys['values'][coalition_idx] / self.journeys['weight'][coalition_idx])
         self.ordered_shapely_proportions = self.ordered_shapely_vals / self.ordered_shapely_vals.sum()
 
-    def score_user(self, user_journey):
+    def score_user(self, user_journey, ordered=True):
         """
-        For now, assume we care about the order (i.e., use ordered_shapely_...)
         user_journey : array-like, sequence of the user's channel touches
         """
-        score_matrix = self.ordered_shapely_proportions
-        self.score = 0
-        for time, channel in enumerate(user_journey):
-            self.score += score_matrix[time, channel]
+        if ordered:
+            score_matrix = self.ordered_shapely_proportions
+            self.score = 0
+            # ordered_shapely_proportions measure the effectiveness of a time/
+            # channel combo. Sum these values up for the user's journey.
+            for time, channel in enumerate(user_journey):
+                self.score += score_matrix[time, channel]
+        else:
+            score_matrix = self.shapely_proportions
+            # If the user touches all channels, this will just be 1
+            self.score = sum(set(SA.shapely_proportions[user_journey]))
         return self.score
 
 
-#journeys = pd.read_csv('data/journeys.csv', header=None)
-#journeys.columns = ['t' + str(c) for c in journeys.columns]
-#values = np.random.rand(journeys.shape[0], 1)
+# journeys = pd.read_csv('data/journeys.csv', header=None)
+# journeys.columns = ['t' + str(c) for c in journeys.columns]
+# values = np.random.rand(journeys.shape[0], 1)
